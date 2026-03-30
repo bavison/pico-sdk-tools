@@ -6,8 +6,8 @@ permissions:
   contents: write
 
 env:
-  SKIP_RISCV: 0
-  SKIP_OPENOCD: 0
+  SKIP_RISCV: ${{ vars.SKIP_RISCV || 0 }}
+  SKIP_OPENOCD: ${{ vars.SKIP_OPENOCD || 0 }}
 
 jobs:
   build_windows:
