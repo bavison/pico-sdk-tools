@@ -93,7 +93,40 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, [self-hosted, linux, arm64, bookworm, 8G]]
+        os: [ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build
+        run: ./build_linux.sh
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tools-lin-${{ runner.arch }}
+          path: |
+            bin/picotool-*-lin.tar.gz
+            bin/pico-sdk-tools-*-lin.tar.gz
+            bin/openocd-*-lin.tar.gz
+            bin/riscv-toolchain-*-lin.tar.gz
+      - name: Add Release Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            bin/picotool-*-lin.tar.gz
+            bin/pico-sdk-tools-*-lin.tar.gz
+            bin/openocd-*-lin.tar.gz
+            bin/riscv-toolchain-*-lin.tar.gz
+
+  build_linux_self_hosted:
+    name: Build Linux (self-hosted)
+    if: github.repository_owner == 'raspberrypi'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [[self-hosted, linux, arm64, bookworm, 8G]]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -127,8 +160,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Test all GitHub supported versions, except for windows-11-arm
-        os: [macos-15, macos-15-intel, macos-14, windows-2025, windows-2022, windows-11-arm, ubuntu-24.04, ubuntu-22.04, ubuntu-24.04-arm, ubuntu-22.04-arm, [self-hosted, linux, arm64, trixie_desktop], [self-hosted, linux, arm64, bookworm_desktop]]
+        # Test all GitHub supported versions
+        os: [macos-15, macos-15-intel, macos-14, windows-2025, windows-2022, windows-11-arm, ubuntu-24.04, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Download build (Windows)
@@ -179,6 +212,47 @@ jobs:
       - name: Install prerequisites (Ubuntu)
         if: runner.os == 'Linux' && runner.environment == 'github-hosted'
         run: sudo apt install libftdi1-2 libhidapi-hidraw0
+
+      - name: Test default stuff runs
+        run: |
+          ./picotool/picotool version
+          ./pioasm/pioasm --version
+      - name: Test openocd runs
+        if: env.SKIP_OPENOCD != 1
+        run: |
+          ./openocd --version
+      - name: Test riscv-toolchain runs
+        if: env.SKIP_RISCV != 1
+        run: |
+          ./bin/riscv32-unknown-elf-gcc --version
+          ./bin/riscv32-unknown-elf-gdb --version
+
+  test_binaries_self_hosted:
+    name: Test Binaries (self-hosted)
+    needs: [build_linux_self_hosted]
+    if: always() && github.repository_owner == 'raspberrypi' && contains(needs.*.result, 'success')
+    strategy:
+      fail-fast: false
+      matrix:
+        # Test all GitHub supported versions
+        os: [ubuntu-24.04-arm, ubuntu-22.04-arm, [self-hosted, linux, arm64, trixie_desktop], [self-hosted, linux, arm64, bookworm_desktop]]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Download build (Linux)
+        uses: actions/download-artifact@v5
+        with:
+          name: tools-lin-${{ runner.arch }}
+
+      - name: Extract build (tar.gz)
+        run: |
+          tar -xvf pico-sdk-tools*.tar.gz
+          ls
+          tar -xvf picotool*.tar.gz
+          ls
+          tar -xvf openocd*.tar.gz || true
+          ls
+          tar -xvf riscv-toolchain*.tar.gz || true
+          ls
 
       - name: Test default stuff runs
         run: |
