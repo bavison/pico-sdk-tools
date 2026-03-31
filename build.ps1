@@ -122,6 +122,17 @@ mkdirp "bin"
   }
 }
 
+# Install EnVar plugin into NSIS
+$envarSrc = "build/NSIS-EnVar/Plugins/x86-unicode/EnVar.dll"
+$nsisPluginsDir = "build/NSIS/Plugins/x86-unicode"
+$envarDst = "$nsisPluginsDir/EnVar.dll"
+
+if (Test-Path $envarSrc) {
+  Write-Host "Installing EnVar plugin into NSIS..."
+  mkdirp $nsisPluginsDir
+  Copy-Item $envarSrc $envarDst -Force
+}
+
 if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
   $env:PATH = $env:PATH + ';' + (Resolve-Path .\build\cmake\bin).Path
 }
@@ -261,6 +272,33 @@ $filename = 'picotool-{0}-{1}.zip' -f
 
 Write-Host "Saving picotool package to $filename"
 exec { tar -a -cf "bin\$filename" -C "build\picotool-install\$msysEnv" '*' }
+
+$nsis = Resolve-Path ".\build\NSIS\makensis.exe"
+$root = Resolve-Path "."
+
+# Build NSIS installer for picotool
+Write-Host "Building picotool installer"
+
+$nsi = ".\packages\windows\picotool\picotool-installer.nsi"
+exec {
+  & $nsis `
+    /DVERSION="$version" `
+    /DSUFFIX="$suffix" `
+    /DBUILD_ROOT="$root" `
+    "$nsi"
+}
+
+# Build NSIS installer for pioasm
+Write-Host "Building pioasm installer"
+
+$nsi = ".\packages\windows\pico-sdk-tools\pico-sdk-tools-installer.nsi"
+exec {
+  & $nsis `
+    /DVERSION="$version" `
+    /DSUFFIX="$suffix" `
+    /DBUILD_ROOT="$root" `
+    "$nsi"
+}
 
 if ($env:SKIP_OPENOCD -ne '1') {
   # Package OpenOCD separately as well
